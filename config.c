@@ -216,6 +216,7 @@ static int include_by_shell(const struct config_options *opts,
 	int ret = 0;
 
 	child.use_shell = 1;
+	argv_array_pushf(&child.env_array, "%s=%s", GIT_DIR_ENVIRONMENT, get_git_dir());
 	argv_array_push(&child.args, cmd_name);
 
 	ret = run_command(&child);
