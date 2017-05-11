@@ -14,6 +14,7 @@
 #include "string-list.h"
 #include "utf8.h"
 #include "dir.h"
+#include "run-command.h"
 
 struct config_source {
 	struct config_source *prev;
@@ -207,6 +208,24 @@ static int prepare_include_condition_pattern(struct strbuf *pat)
 	return prefix;
 }
 
+static int include_by_shell(const struct config_options *opts,
+			     const char *cond, size_t cond_len)
+{
+	struct child_process child = CHILD_PROCESS_INIT;
+	char *cmd_name = xstrndup(cond, cond_len);
+	int ret = 0;
+
+	child.use_shell = 1;
+	argv_array_push(&child.args, cmd_name);
+
+	ret = run_command(&child);
+	if (ret < 0)
+		die_errno("Could not execute '%s'", cmd_name);
+
+	/* Perform include if return code is 0. Else, do not include */
+	return (ret == 0) ? 1 : 0;
+}
+
 static int include_by_gitdir(const struct config_options *opts,
 			     const char *cond, size_t cond_len, int icase)
 {
@@ -259,6 +278,8 @@ static int include_condition_is_true(const struct config_options *opts,
 		return include_by_gitdir(opts, cond, cond_len, 0);
 	else if (skip_prefix_mem(cond, cond_len, "gitdir/i:", &cond, &cond_len))
 		return include_by_gitdir(opts, cond, cond_len, 1);
+	else if (skip_prefix_mem(cond, cond_len, "shell:", &cond, &cond_len))
+		return include_by_shell(opts, cond, cond_len);
 
 	/* unknown conditionals are always false */
 	return 0;
